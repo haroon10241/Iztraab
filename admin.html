@@ -5,16 +5,20 @@ const sha=async s=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new T
 let P=[],ver='',ed=null;const app=$('#app');
 const cfg=()=>JSON.parse(localStorage.izcfg||'{}');
 const api=()=>`https://api.github.com/repos/${cfg().repo}/contents/posts.json`;
-const hd=()=>({Authorization:'Bearer '+cfg().token,Accept:'application/vnd.github+json'});
-async function pull(){const r=await fetch(api(),{headers:hd()});if(!r.ok)throw new Error('GitHub error '+r.status+'. Check the repository name and token.');
+const hd=()=>({Authorization:'Bearer '+cfg().token,Accept:'application/vnd.github+json','Content-Type':'application/json'});
+async function gh(o){try{return await fetch(api(),{headers:hd(),...o})}catch(e){throw new Error('Network problem: the browser could not reach api.github.com ('+e.message+'). Open https://api.github.com/zen in a new tab. If it does not load, switch off VPN or ad-blocker, or change your network.')}}
+async function pull(){const r=await gh();if(!r.ok)throw new Error('GitHub error '+r.status+'. Check the repository name and token.');
   const j=await r.json();ver=j.sha;P=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(j.content.replace(/\n/g,'')),c=>c.charCodeAt(0))))}
 async function push(msg){let s='';new TextEncoder().encode(JSON.stringify(P,null,1)).forEach(b=>s+=String.fromCharCode(b));
-  const r=await fetch(api(),{method:'PUT',headers:hd(),body:JSON.stringify({message:msg,content:btoa(s),sha:ver})});
+  const r=await gh({method:'PUT',body:JSON.stringify({message:msg,content:btoa(s),sha:ver})});
   if(!r.ok)throw new Error('Could not save ('+r.status+'). Check the token has Contents: Read and write access.')}
 function login(m=''){app.innerHTML=`<h1>Admin login</h1><p class="er">${m}</p><form class="fm" id="lf"><label>Username<input id="u" autocomplete="username" required></label><label>Password<input id="pw" type="password" autocomplete="current-password" required></label><button class="btn">Log in</button></form>`;
   $('#lf').onsubmit=async e=>{e.preventDefault();if(await sha($('#u').value.trim()+':'+$('#pw').value)===HASH){sessionStorage.iz=1;panel()}else login('Wrong username or password.')}}
 function setup(m=''){const c=cfg();app.innerHTML=`<h1>Connect GitHub</h1><p class="m">One-time setup on this device. Repository looks like <b>yourname/iztraab</b>. The token needs <b>Contents: Read and write</b> access to that repository only.</p><p class="er">${esc(m)}</p><form class="fm" id="sf"><label>Repository<input id="r" value="${esc(c.repo||'')}" required></label><label>Fine-grained access token<input id="tk" type="password" value="${esc(c.token||'')}" required></label><button class="btn">Save and continue</button></form>`;
-  $('#sf').onsubmit=e=>{e.preventDefault();localStorage.izcfg=JSON.stringify({repo:$('#r').value.trim(),token:$('#tk').value.trim()});panel()}}
+  $('#sf').onsubmit=e=>{e.preventDefault();const r=$('#r').value.trim().replace(/^https?:\/\/github\.com\//,'').replace(/\.git$/,'').replace(/^\/+|\/+$/g,''),tk=$('#tk').value.trim();
+    if(!/^[\w.-]+\/[\w.-]+$/.test(r))return setup('Repository must look like username/repository-name.');
+    if(/[^\x21-\x7E]/.test(tk))return setup('The token has extra or invalid characters. Copy it again from GitHub.');
+    localStorage.izcfg=JSON.stringify({repo:r,token:tk});panel()}}
 async function panel(m=''){
   if(!cfg().repo)return setup();
   try{await pull()}catch(e){return setup(e.message)}
