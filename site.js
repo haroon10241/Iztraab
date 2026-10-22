@@ -15,11 +15,11 @@ async function socialFB(x,m){
   if(!FB.project)return;const id=x.id,s=document.createElement('section');s.className='soc';
   s.innerHTML=`<div class="act"><button class="btn s" id="lk"></button><span class="m" id="vw"></span></div><h2>Comments</h2><form class="fm" id="cf"><input id="cn" maxlength="40" placeholder="Your name" required><textarea id="ct" rows="3" maxlength="1000" placeholder="Write a comment..." required></textarea><button class="btn">Post comment</button></form><div id="cl"></div>`;
   m.appendChild(s);let st={v:0,l:0};
-  const upd=()=>{$('#lk').textContent=(localStorage['l_'+id]?'♥ ':'♡ ')+st.l;$('#vw').textContent='👁 '+st.v+' views'};
+  const upd=()=>{$('#lk').textContent=(localStorage['L2_'+id]?'♥ ':'♡ ')+st.l;$('#vw').textContent='👁 '+st.v+' views'};
   try{const d=(await fs('/stats/'+id)).fields;st={v:num(d?.views),l:num(d?.likes)}}catch{}
   upd();
-  if(!localStorage['v_'+id]){localStorage['v_'+id]=1;bump(id,'views').then(()=>{st.v++;upd()}).catch(()=>{})}
-  $('#lk').onclick=()=>{if(localStorage['l_'+id])return;localStorage['l_'+id]=1;st.l++;upd();bump(id,'likes').catch(()=>{})};
+  if(!localStorage['V2_'+id]){localStorage['V2_'+id]=1;bump(id,'views').then(()=>{st.v++;upd()}).catch(()=>{})}
+  $('#lk').onclick=()=>{if(localStorage['L2_'+id])return;localStorage['L2_'+id]=1;st.l++;upd();bump(id,'likes').catch(()=>{})};
   const load=async()=>{try{
     const j=await fs(':runQuery',{method:'POST',headers:JH,body:JSON.stringify({structuredQuery:{from:[{collectionId:'comments'}],where:{fieldFilter:{field:{fieldPath:'post'},op:'EQUAL',value:{stringValue:id}}},limit:100}})});
     const L=j.filter(r=>r.document).map(r=>({n:r.document.fields.name.stringValue,t:r.document.fields.text.stringValue,s:num(r.document.fields.ts)})).sort((a,b)=>b.s-a.s);
@@ -31,17 +31,17 @@ async function socialFB(x,m){
 if(ADS){const s=document.createElement('script');s.async=true;s.crossOrigin='anonymous';s.src='https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client='+ADS;document.head.appendChild(s)}
 document.body.insertAdjacentHTML('afterbegin','<header class="bar"><a class="logo" href="./">Iztraab</a><nav><a href="./">Home</a><a href="about.html">About</a><a href="contact.html">Contact</a></nav></header>');
 document.body.insertAdjacentHTML('beforeend','<footer><b>Iztraab</b><nav><a href="about.html">About</a><a href="contact.html">Contact</a><a href="privacy.html">Privacy Policy</a><a href="terms.html">Terms &amp; Disclaimer</a></nav>&copy; '+new Date().getFullYear()+' Iztraab. All rights reserved.</footer>');
-const MAIL='ishaqsyed93@gmail.com',NS='iztraab-k7q2x9'; // NS = private counter group name, keep it unique
-const cnt=async(k,up)=>{try{const j=await(await fetch(`https://api.counterapi.dev/v1/${NS}/${k}${up?'/up':''}`)).json();return +(j.count??j.value??0)}catch{return 0}};
-async function stats(P){if(FB.project)return statsFB();const o={};await Promise.all((P||[]).map(async p=>{o[p.id]={v:await cnt('v-'+p.id),l:await cnt('l-'+p.id)}}));return o}
+const MAIL='ishaqsyed93@gmail.com',NS='iztraab_k7q2x9'; // NS = private counter group name, keep it unique
+const cnt=async(k,up)=>{try{const r=await fetch(`https://countapi.mileshilliard.com/api/v1/${up?'hit':'get'}/${NS}_${k}`);if(!r.ok)return 0;return +((await r.json()).value||0)}catch{return 0}};
+async function stats(P){if(FB.project)return statsFB();const o={};await Promise.all((P||[]).slice(0,10).map(async p=>{o[p.id]={v:await cnt('v_'+p.id),l:await cnt('l_'+p.id)}}));return o}
 async function social(x,m){
   if(FB.project)return socialFB(x,m);
   const id=x.id,s=document.createElement('section');s.className='soc';
   s.innerHTML=`<div class="act"><button class="btn s" id="lk"></button><span class="m" id="vw"></span></div><a class="btn s" href="mailto:${MAIL}?subject=${encodeURIComponent('Comment on: '+x.title)}">Send your thoughts by email</a>`;
   m.appendChild(s);let st={v:0,l:0};
-  const upd=()=>{$('#lk').textContent=(localStorage['l_'+id]?'♥ ':'♡ ')+st.l;$('#vw').textContent='👁 '+st.v+' views'};
-  upd();[st.v,st.l]=await Promise.all([cnt('v-'+id,!localStorage['v_'+id]),cnt('l-'+id)]);localStorage['v_'+id]=1;upd();
-  $('#lk').onclick=()=>{if(localStorage['l_'+id])return;localStorage['l_'+id]=1;st.l++;upd();cnt('l-'+id,1)};
+  const upd=()=>{$('#lk').textContent=(localStorage['L2_'+id]?'♥ ':'♡ ')+st.l;$('#vw').textContent='👁 '+st.v+' views'};
+  upd();[st.v,st.l]=await Promise.all([cnt('v_'+id,!localStorage['V2_'+id]),cnt('l_'+id)]);if(st.v)localStorage['V2_'+id]=1;upd();
+  $('#lk').onclick=async()=>{if(localStorage['L2_'+id])return;localStorage['L2_'+id]=1;st.l++;upd();const n=await cnt('l_'+id,1);if(n)st.l=n;else{localStorage.removeItem('L2_'+id);st.l--;alert('Could not save your like. Please try again.')}upd()};
 }
 const pg=document.body.dataset.page;
 const card=(x,f,S={})=>`<a class="c${f?' f':''}" href="post.html?id=${encodeURIComponent(x.id)}"><div class="im" style="--h:${[...x.id].reduce((a,c)=>a+c.charCodeAt(0)*7,0)%360}${x.img?`;background-image:url('${esc(x.img)}')`:''}"></div><div class="b"><span class="pill">${esc(x.cat)}</span><h2 dir="auto">${esc(x.title)}</h2><p dir="auto">${esc(ex(x.body))}</p><div class="m">${x.date} &middot; ${Math.max(1,Math.round(strip(x.body).split(' ').length/200))} min read${S[x.id]?` &middot; 👁 ${S[x.id].v} &middot; ♥ ${S[x.id].l}`:''}</div></div></a>`;
