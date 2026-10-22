@@ -4,14 +4,18 @@ const HASH='b1087a7d560d5e6dd9462489a077015d7cc8bbe0755da7a051f09c9854ce07e9';
 const sha=async s=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(s)))].map(b=>b.toString(16).padStart(2,'0')).join('');
 let P=[],ver='',ed=null;const app=$('#app');
 const cfg=()=>JSON.parse(localStorage.izcfg||'{}');
-const api=()=>`https://api.github.com/repos/${cfg().repo}/contents/posts.json`;
+const api=f=>`https://api.github.com/repos/${cfg().repo}/contents/${f||'posts.json'}`;
 const hd=()=>({Authorization:'Bearer '+cfg().token,Accept:'application/vnd.github+json','Content-Type':'application/json'});
-async function gh(o){try{return await fetch(api(),{headers:hd(),...o})}catch(e){throw new Error('Network problem: the browser could not reach api.github.com ('+e.message+'). Open https://api.github.com/zen in a new tab. If it does not load, switch off VPN or ad-blocker, or change your network.')}}
+async function gh(o,f){try{return await fetch(api(f),{headers:hd(),...o})}catch(e){throw new Error('Network problem: the browser could not reach api.github.com ('+e.message+'). Open https://api.github.com/zen in a new tab. If it does not load, switch off VPN or ad-blocker, or change your network.')}}
 async function pull(){const r=await gh();if(!r.ok)throw new Error('GitHub error '+r.status+'. Check the repository name and token.');
   const j=await r.json();ver=j.sha;P=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(j.content.replace(/\n/g,'')),c=>c.charCodeAt(0))))}
 async function push(msg){let s='';new TextEncoder().encode(JSON.stringify(P,null,1)).forEach(b=>s+=String.fromCharCode(b));
   const r=await gh({method:'PUT',body:JSON.stringify({message:msg,content:btoa(s),sha:ver})});
   if(!r.ok)throw new Error('Could not save ('+r.status+'). Check the token has Contents: Read and write access.')}
+async function img(f){const b=await createImageBitmap(f),k=Math.min(1,1400/b.width),c=document.createElement('canvas');c.width=Math.round(b.width*k);c.height=Math.round(b.height*k);
+  const g=c.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,c.width,c.height);g.drawImage(b,0,0,c.width,c.height);
+  const n='images/'+Date.now().toString(36)+'.jpg',r=await gh({method:'PUT',body:JSON.stringify({message:'Add image',content:c.toDataURL('image/jpeg',.82).split(',')[1]})},n);
+  if(!r.ok)throw new Error('Image upload failed ('+r.status+'). Check the token has Contents: Read and write access.');return n}
 function login(m=''){app.innerHTML=`<h1>Admin login</h1><p class="er">${m}</p><form class="fm" id="lf"><label>Username<input id="u" autocomplete="username" required></label><label>Password<input id="pw" type="password" autocomplete="current-password" required></label><button class="btn">Log in</button></form>`;
   $('#lf').onsubmit=async e=>{e.preventDefault();if(await sha($('#u').value.trim()+':'+$('#pw').value)===HASH){sessionStorage.iz=1;panel()}else login('Wrong username or password.')}}
 function setup(m=''){const c=cfg();app.innerHTML=`<h1>Connect GitHub</h1><p class="m">One-time setup on this device. Repository looks like <b>yourname/iztraab</b>. The token needs <b>Contents: Read and write</b> access to that repository only.</p><p class="er">${esc(m)}</p><form class="fm" id="sf"><label>Repository<input id="r" value="${esc(c.repo||'')}" required></label><label>Fine-grained access token<input id="tk" type="password" value="${esc(c.token||'')}" required></label><button class="btn">Save and continue</button></form>`;
@@ -22,18 +26,19 @@ function setup(m=''){const c=cfg();app.innerHTML=`<h1>Connect GitHub</h1><p clas
 async function panel(m=''){
   if(!cfg().repo)return setup();
   try{await pull()}catch(e){return setup(e.message)}
+  const S=await stats(P);
   const x=ed||{id:'',title:'',cat:'',img:'',body:''};
   app.innerHTML=`<p><a class="btn s" href="#" id="lo">Log out</a> <a class="btn s" href="#" id="st">GitHub settings</a></p><h1>${ed?'Edit post':'New post'}</h1><p class="er">${esc(m)}</p>
-<form class="fm" id="pf"><label>Title<input id="t" value="${esc(x.title)}" required></label><label>Category<input id="c" value="${esc(x.cat)}" placeholder="e.g. Life, Tech, Poetry"></label><label>Cover image URL (optional)<input id="i" value="${esc(x.img)}"></label><label>Article<textarea id="b" rows="14" required>${esc(x.body)}</textarea></label>
+<form class="fm" id="pf"><label>Title<input id="t" value="${esc(x.title)}" required></label><label>Category<input id="c" value="${esc(x.cat)}" placeholder="e.g. Life, Tech, Poetry"></label><label>Cover image (optional, from your phone or computer)<input id="i" type="file" accept="image/*"></label>${x.img?'<p class="m">Current image is kept unless you choose a new one.</p>':''}<label>Article<textarea id="b" rows="14" required>${esc(x.body)}</textarea></label>
 <p class="m">Plain text works: leave a blank line for a new paragraph. You can also paste HTML. Urdu text displays right-to-left automatically.</p><button class="btn">Publish</button> ${ed?'<a class="btn s" href="#" id="cn">Cancel</a>':''}</form><h2>Your posts</h2>`+
-  (P.length?P.map(p=>`<div class="row"><span dir="auto">${esc(p.title)}<br><small class="m">${p.date}</small></span><span><a class="btn s" href="#" data-e="${p.id}">Edit</a> <a class="btn s" href="#" data-d="${p.id}">Delete</a></span></div>`).join(''):'<p class="e">No posts yet. Write your first one above.</p>');
+  (P.length?P.map(p=>`<div class="row"><span dir="auto">${esc(p.title)}<br><small class="m">${p.date}${S[p.id]?` &middot; 👁 ${S[p.id].v} &middot; ♥ ${S[p.id].l}`:''}</small></span><span><a class="btn s" href="#" data-e="${p.id}">Edit</a> <a class="btn s" href="#" data-d="${p.id}">Delete</a></span></div>`).join(''):'<p class="e">No posts yet. Write your first one above.</p>');
   $('#lo').onclick=e=>{e.preventDefault();sessionStorage.removeItem('iz');login()};
   $('#st').onclick=e=>{e.preventDefault();setup()};
   if($('#cn'))$('#cn').onclick=e=>{e.preventDefault();ed=null;panel()};
   $('#pf').onsubmit=async e=>{e.preventDefault();
-    const r={id:x.id||Date.now().toString(36),title:$('#t').value.trim(),cat:$('#c').value.trim()||'General',img:$('#i').value.trim(),body:$('#b').value,date:x.date||new Date().toISOString().slice(0,10)};
+    const r={id:x.id||Date.now().toString(36),title:$('#t').value.trim(),cat:$('#c').value.trim()||'General',img:x.img||'',body:$('#b').value,date:x.date||new Date().toISOString().slice(0,10)};
     const k=P.findIndex(p=>p.id===r.id);k<0?P.unshift(r):P[k]=r;
-    try{await push('Publish: '+r.title);ed=null;panel('Published. It goes live on the site in about a minute.')}catch(er){panel(er.message)}};
+    try{const f=$('#i').files[0];if(f){$('#pf button').textContent='Uploading...';r.img=await img(f)}await push('Publish: '+r.title);ed=null;panel('Published. It goes live on the site in about a minute.')}catch(er){panel(er.message)}};
   app.querySelectorAll('[data-e]').forEach(a=>a.onclick=e=>{e.preventDefault();ed=P.find(p=>p.id===a.dataset.e);panel()});
   app.querySelectorAll('[data-d]').forEach(a=>a.onclick=async e=>{e.preventDefault();if(!confirm('Delete this post?'))return;
     P=P.filter(p=>p.id!==a.dataset.d);try{await push('Delete post');panel('Deleted.')}catch(er){panel(er.message)}});
